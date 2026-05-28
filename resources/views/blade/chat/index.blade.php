@@ -2,10 +2,9 @@
 @section('title', 'Chat')
 
 @section('content')
-<div x-data="chatApp()" x-init="init()" class="h-screen flex overflow-hidden bg-gray-100">
+<div id="chat-app" class="h-screen flex overflow-hidden bg-gray-100">
     {{-- Sidebar --}}
-    <div class="w-full md:w-96 lg:w-[420px] flex flex-col border-r border-gray-200 bg-white"
-         :class="{ 'hidden md:flex': activeConversation }">
+    <div id="sidebar" class="w-full md:w-96 lg:w-[420px] flex flex-col border-r border-gray-200 bg-white">
 
         {{-- Sidebar Header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white">
@@ -20,12 +19,12 @@
             </div>
             <div class="flex items-center space-x-2">
                 {{-- Notification Bell --}}
-                <div class="relative" x-data="{ showNotif: false }">
-                    <button @click="showNotif = !showNotif" class="btn-press p-2 rounded-full hover:bg-gray-100 transition-colors relative">
+                <div class="relative">
+                    <button id="btn-notif" class="btn-press p-2 rounded-full hover:bg-gray-100 transition-colors relative">
                         <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                         </svg>
-                        <span x-show="unreadTotal > 0" x-text="unreadTotal" class="badge-pop absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold"></span>
+                        <span id="unread-badge" class="badge-pop absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold hidden-el"></span>
                     </button>
                 </div>
 
@@ -37,6 +36,13 @@
                     </svg>
                 </a>
                 @endif
+
+                {{-- AI Chat Button --}}
+                <a href="{{ route('blade.ai.chat') }}" class="btn-press p-2 rounded-full hover:bg-gray-100 transition-colors" title="AI Assistant">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 00-.659 1.591v1.689m-4.621 0h4.621m-4.621 0L9.25 22.5m4.621-2.25L16.5 22.5"/>
+                    </svg>
+                </a>
 
                 <form method="POST" action="{{ route('blade.logout') }}">
                     @csrf
@@ -55,35 +61,21 @@
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
-                <input type="text" x-model="searchQuery" @input.debounce.300ms="searchUsers()"
+                <input type="text" id="search-input"
                     placeholder="Cari atau mulai chat baru..."
                     class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-0 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200">
             </div>
 
             {{-- Search Results --}}
-            <div x-show="searchResults.length > 0" x-cloak class="mt-2 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden">
-                <template x-for="user in searchResults" :key="user.id">
-                    <button @click="startChat(user.id)" class="btn-press w-full flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">
-                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-                            <span x-text="user.name.charAt(0).toUpperCase()"></span>
-                        </div>
-                        <div class="ml-3 text-left">
-                            <p class="text-sm font-medium text-gray-900" x-text="user.name"></p>
-                            <p class="text-xs text-gray-500" x-text="user.email"></p>
-                        </div>
-                    </button>
-                </template>
-            </div>
+            <div id="search-results" class="mt-2 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden hidden-el"></div>
         </div>
 
         {{-- Conversation List --}}
         <div class="flex-1 overflow-y-auto scrollbar-thin">
             @forelse($conversations ?? [] as $index => $conv)
-            <button wire:key="conv-{{ $conv->id }}"
-                @click="openConversation({{ $conv->id }})"
-                class="btn-press w-full flex items-center px-5 py-3.5 hover:bg-gray-50 transition-all duration-150 border-b border-gray-50 animate-fade-in"
-                style="animation-delay: {{ $index * 50 }}ms"
-                :class="{ 'bg-emerald-50 border-l-4 border-l-emerald-500': activeConversation == {{ $conv->id }} }">
+            <button data-conv-id="{{ $conv->id }}"
+                class="conv-item btn-press w-full flex items-center px-5 py-3.5 hover:bg-gray-50 transition-all duration-150 border-b border-gray-50 animate-fade-in"
+                style="animation-delay: {{ $index * 50 }}ms">
 
                 {{-- Avatar --}}
                 <div class="relative flex-shrink-0">
@@ -139,32 +131,31 @@
     </div>
 
     {{-- Chat Window --}}
-    <div class="flex-1 flex flex-col bg-gray-50"
-         :class="{ 'hidden md:flex': !activeConversation }">
+    <div id="chat-window" class="flex-1 flex flex-col bg-gray-50 hidden md:flex">
 
         {{-- Chat Header --}}
-        <div x-show="activeConversation" class="flex items-center px-5 py-3.5 bg-white border-b border-gray-100 shadow-sm">
-            <button @click="closeConversation()" class="md:hidden btn-press mr-3 p-1 rounded-full hover:bg-gray-100">
+        <div id="chat-header" class="flex items-center px-5 py-3.5 bg-white border-b border-gray-100 shadow-sm hidden-el">
+            <button id="btn-back" class="md:hidden btn-press mr-3 p-1 rounded-full hover:bg-gray-100">
                 <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
             </button>
             <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                <span x-text="activeName ? activeName.charAt(0).toUpperCase() : ''"></span>
+                <span id="header-avatar"></span>
             </div>
             <div class="ml-3">
-                <h3 class="text-sm font-semibold text-gray-900" x-text="activeName"></h3>
-                <p class="text-xs" :class="isOnline ? 'text-green-500' : 'text-gray-400'">
-                    <span x-show="typingUser" x-text="typingUser + ' sedang mengetik...'" class="text-emerald-500 italic"></span>
-                    <span x-show="!typingUser" x-text="isOnline ? 'Online' : 'Offline'"></span>
+                <h3 id="header-name" class="text-sm font-semibold text-gray-900"></h3>
+                <p id="header-status" class="text-xs text-gray-400">
+                    <span id="typing-status" class="text-emerald-500 italic hidden-el"></span>
+                    <span id="online-status">Offline</span>
                 </p>
             </div>
         </div>
 
         {{-- Messages Area --}}
-        <div x-ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 scrollbar-thin" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0f9ff 100%);">
+        <div id="messages-container" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 scrollbar-thin" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0f9ff 100%);">
             {{-- Empty State --}}
-            <div x-show="!activeConversation" class="flex flex-col items-center justify-center h-full text-gray-400">
+            <div id="empty-state" class="flex flex-col items-center justify-center h-full text-gray-400">
                 <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                     <svg class="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
@@ -174,28 +165,11 @@
                 <p class="text-sm mt-1">atau cari seseorang untuk mulai chat baru</p>
             </div>
 
-            {{-- Messages --}}
-            <template x-for="(msg, idx) in messages" :key="msg.id">
-                <div class="message-enter" :class="msg.sender.id == {{ auth()->id() }} ? 'flex justify-end' : 'flex justify-start'">
-                    <div class="max-w-[75%] lg:max-w-[60%]"
-                         :class="msg.sender.id == {{ auth()->id() }}
-                            ? 'bg-emerald-500 text-white rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm'
-                            : 'bg-white text-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm border border-gray-100'">
-                        <p class="text-sm leading-relaxed whitespace-pre-wrap" x-text="msg.body"></p>
-                        <div class="flex items-center justify-end mt-1 space-x-1">
-                            <span class="text-[10px] opacity-70" x-text="formatTime(msg.created_at)"></span>
-                            <template x-if="msg.sender.id == {{ auth()->id() }}">
-                                <svg x-show="msg.is_read" class="w-3.5 h-3.5 opacity-70" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/>
-                                </svg>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-            </template>
+            {{-- Messages will be rendered here by jQuery --}}
+            <div id="messages-list"></div>
 
             {{-- Typing Indicator --}}
-            <div x-show="typingUser" x-cloak class="flex justify-start">
+            <div id="typing-indicator" class="flex justify-start hidden-el">
                 <div class="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-gray-100">
                     <div class="flex space-x-1">
                         <div class="typing-dot w-2 h-2 bg-gray-400 rounded-full"></div>
@@ -207,18 +181,14 @@
         </div>
 
         {{-- Input Area --}}
-        <div x-show="activeConversation" class="px-4 py-3 bg-white border-t border-gray-100">
-            <form @submit.prevent="sendMessage()" class="flex items-end space-x-3">
+        <div id="input-area" class="px-4 py-3 bg-white border-t border-gray-100 hidden-el">
+            <form id="message-form" class="flex items-end space-x-3">
                 <div class="flex-1 relative">
-                    <textarea x-model="newMessage" @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
-                        @input="emitTyping()"
-                        rows="1" placeholder="Ketik pesan..."
-                        class="w-full resize-none border-0 bg-gray-50 rounded-2xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200 max-h-32 overflow-y-auto"
-                        x-ref="messageInput"
-                        @input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"></textarea>
+                    <textarea id="message-input" rows="1" placeholder="Ketik pesan..."
+                        class="w-full resize-none border-0 bg-gray-50 rounded-2xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200 max-h-32 overflow-y-auto"></textarea>
                 </div>
-                <button type="submit" :disabled="!newMessage.trim()"
-                    class="btn-press flex-shrink-0 w-11 h-11 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all duration-200 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed">
+                <button type="submit" id="btn-send"
+                    class="btn-press flex-shrink-0 w-11 h-11 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all duration-200 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed" disabled>
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                     </svg>
@@ -230,169 +200,322 @@
 
 @push('scripts')
 <script>
-function chatApp() {
-    return {
-        conversations: @json($conversations ?? []),
-        activeConversation: {{ isset($conversation) ? $conversation->id : 'null' }},
-        activeName: '{{ isset($conversation) ? $conversation->getOtherParticipant(auth()->user())->name ?? "" : "" }}',
-        isOnline: false,
-        messages: @json(isset($messages) ? $messages->items() : []),
-        newMessage: '',
-        typingUser: null,
-        typingTimeout: null,
-        searchQuery: '',
-        searchResults: [],
-        unreadTotal: 0,
-        echoChannel: null,
+(function($) {
+    'use strict';
 
-        init() {
+    var ChatApp = {
+        // State
+        activeConversation: {{ isset($conversation) ? $conversation->id : 'null' }},
+        activeName: '{{ isset($conversation) ? addslashes($conversation->getOtherParticipant(auth()->user())->name ?? "") : "" }}',
+        messages: @json(isset($messages) ? $messages->items() : []),
+        unreadTotal: 0,
+        typingTimeout: null,
+        echoChannel: null,
+        searchDebounce: null,
+        currentUserId: {{ auth()->id() }},
+
+        init: function() {
+            this.bindEvents();
             this.calculateUnread();
+
             if (this.activeConversation) {
+                this.showConversation();
+                this.renderMessages();
                 this.subscribeToConversation(this.activeConversation);
-                this.$nextTick(() => this.scrollToBottom());
+                this.scrollToBottom();
             }
+
             this.listenForNotifications();
         },
 
-        calculateUnread() {
-            this.unreadTotal = this.conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
-        },
+        bindEvents: function() {
+            var self = this;
 
-        openConversation(id) {
-            window.location.href = `/blade/conversations/${id}`;
-        },
+            // Conversation click
+            $(document).on('click', '.conv-item', function() {
+                var id = $(this).data('conv-id');
+                window.location.href = '/blade/conversations/' + id;
+            });
 
-        closeConversation() {
-            this.activeConversation = null;
-            window.location.href = '/blade/conversations';
-        },
+            // Search input with debounce
+            $('#search-input').on('input', function() {
+                clearTimeout(self.searchDebounce);
+                self.searchDebounce = setTimeout(function() {
+                    self.searchUsers();
+                }, 300);
+            });
 
-        subscribeToConversation(id) {
-            if (this.echoChannel) {
-                Echo.leave(this.echoChannel);
-            }
-            this.echoChannel = `conversation.${id}`;
+            // Send message
+            $('#message-form').on('submit', function(e) {
+                e.preventDefault();
+                self.sendMessage();
+            });
 
-            Echo.join(`conversation.${id}`)
-                .listen('MessageSent', (e) => {
-                    this.messages.push(e);
-                    this.$nextTick(() => this.scrollToBottom());
-                    // Mark as read
-                    fetch(`/blade/conversations/${id}/read`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
-                    });
-                })
-                .listen('TypingStarted', (e) => {
-                    this.typingUser = e.user_name;
-                    clearTimeout(this.typingTimeout);
-                    this.typingTimeout = setTimeout(() => { this.typingUser = null; }, 3000);
-                });
-        },
-
-        listenForNotifications() {
-            Echo.private(`user.{{ auth()->id() }}`)
-                .listen('NotificationSent', (e) => {
-                    this.unreadTotal++;
-                    // Update conversation list jika ada
-                    let conv = this.conversations.find(c => c.id == e.conversation_id);
-                    if (conv) {
-                        conv.unread_count = (conv.unread_count || 0) + 1;
-                    }
-                });
-        },
-
-        async sendMessage() {
-            if (!this.newMessage.trim()) return;
-
-            const body = this.newMessage;
-            this.newMessage = '';
-            this.$refs.messageInput.style.height = 'auto';
-
-            try {
-                const res = await fetch('{{ route("blade.messages.store") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        conversation_id: this.activeConversation,
-                        body: body,
-                    }),
-                });
-                const data = await res.json();
-                if (data.message) {
-                    this.messages.push(data.message);
-                    this.$nextTick(() => this.scrollToBottom());
+            // Enter to send (shift+enter for newline)
+            $('#message-input').on('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    self.sendMessage();
                 }
-            } catch (e) {
-                console.error('Gagal kirim pesan:', e);
-                this.newMessage = body; // Kembalikan pesan jika gagal
-            }
-        },
+            });
 
-        emitTyping() {
-            fetch('{{ route("blade.typing") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                },
-                body: JSON.stringify({ conversation_id: this.activeConversation }),
+            // Auto-resize textarea
+            $('#message-input').on('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+                // Enable/disable send button
+                $('#btn-send').prop('disabled', !$(this).val().trim());
+                // Emit typing
+                self.emitTyping();
+            });
+
+            // Back button (mobile)
+            $('#btn-back').on('click', function() {
+                window.location.href = '/blade/conversations';
             });
         },
 
-        async searchUsers() {
-            if (this.searchQuery.length < 2) {
-                this.searchResults = [];
-                return;
+        calculateUnread: function() {
+            var conversations = @json($conversations ?? []);
+            this.unreadTotal = 0;
+            for (var i = 0; i < conversations.length; i++) {
+                this.unreadTotal += (conversations[i].unread_count || 0);
             }
-            try {
-                const res = await fetch(`{{ route("blade.users.search") }}?q=${encodeURIComponent(this.searchQuery)}`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-                const data = await res.json();
-                this.searchResults = data.users || [];
-            } catch (e) {
-                this.searchResults = [];
+            this.updateUnreadBadge();
+        },
+
+        updateUnreadBadge: function() {
+            if (this.unreadTotal > 0) {
+                $('#unread-badge').text(this.unreadTotal).removeClass('hidden-el');
+            } else {
+                $('#unread-badge').addClass('hidden-el');
             }
         },
 
-        async startChat(userId) {
-            try {
-                const res = await fetch('{{ route("blade.conversations.start") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({ user_id: userId }),
-                });
-                const data = await res.json();
-                if (data.conversation) {
-                    window.location.href = `/blade/conversations/${data.conversation.id}`;
-                }
-            } catch (e) {
-                console.error(e);
-            }
+        showConversation: function() {
+            // On mobile: hide sidebar, show chat window
+            $('#sidebar').addClass('hidden md:flex');
+            $('#chat-window').removeClass('hidden').addClass('flex');
+            $('#chat-header').removeClass('hidden-el');
+            $('#input-area').removeClass('hidden-el');
+            $('#empty-state').hide();
+            $('#messages-list').show();
+
+            // Update header
+            $('#header-avatar').text(this.activeName ? this.activeName.charAt(0).toUpperCase() : '');
+            $('#header-name').text(this.activeName);
+
+            // Highlight active conversation
+            $('.conv-item').removeClass('bg-emerald-50 border-l-4 border-l-emerald-500');
+            $('.conv-item[data-conv-id="' + this.activeConversation + '"]').addClass('bg-emerald-50 border-l-4 border-l-emerald-500');
         },
 
-        scrollToBottom() {
-            const container = this.$refs.messagesContainer;
-            if (container) {
-                container.scrollTop = container.scrollHeight;
-            }
+        renderMessages: function() {
+            var self = this;
+            var $list = $('#messages-list');
+            $list.empty();
+
+            $.each(this.messages, function(idx, msg) {
+                $list.append(self.createMessageBubble(msg));
+            });
         },
 
-        formatTime(dateStr) {
-            const date = new Date(dateStr);
+        createMessageBubble: function(msg) {
+            var isMine = msg.sender.id == this.currentUserId;
+            var alignClass = isMine ? 'flex justify-end' : 'flex justify-start';
+            var bubbleClass = isMine
+                ? 'bg-emerald-500 text-white rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm'
+                : 'bg-white text-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm border border-gray-100';
+
+            var time = this.formatTime(msg.created_at);
+            var readCheck = '';
+            if (isMine && msg.is_read) {
+                readCheck = '<svg class="w-3.5 h-3.5 opacity-70" fill="currentColor" viewBox="0 0 24 24"><path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/></svg>';
+            }
+
+            return '<div class="message-enter ' + alignClass + '">' +
+                '<div class="max-w-[75%] lg:max-w-[60%] ' + bubbleClass + '">' +
+                    '<p class="text-sm leading-relaxed whitespace-pre-wrap">' + this.escapeHtml(msg.body) + '</p>' +
+                    '<div class="flex items-center justify-end mt-1 space-x-1">' +
+                        '<span class="text-[10px] opacity-70">' + time + '</span>' +
+                        readCheck +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        },
+
+        escapeHtml: function(text) {
+            var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text ? text.replace(/[&<>"']/g, function(m) { return map[m]; }) : '';
+        },
+
+        formatTime: function(dateStr) {
+            var date = new Date(dateStr);
             return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
         },
+
+        scrollToBottom: function() {
+            var container = document.getElementById('messages-container');
+            if (container) {
+                setTimeout(function() {
+                    container.scrollTop = container.scrollHeight;
+                }, 50);
+            }
+        },
+
+        subscribeToConversation: function(id) {
+            var self = this;
+            if (this.echoChannel) {
+                Echo.leave(this.echoChannel);
+            }
+            this.echoChannel = 'conversation.' + id;
+
+            Echo.join('conversation.' + id)
+                .listen('MessageSent', function(e) {
+                    self.messages.push(e);
+                    $('#messages-list').append(self.createMessageBubble(e));
+                    self.scrollToBottom();
+                    // Mark as read
+                    $.ajax({
+                        url: '/blade/conversations/' + id + '/read',
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content') }
+                    });
+                })
+                .listen('TypingStarted', function(e) {
+                    $('#typing-indicator').removeClass('hidden-el');
+                    $('#typing-status').text(e.user_name + ' sedang mengetik...').removeClass('hidden-el');
+                    $('#online-status').addClass('hidden-el');
+                    clearTimeout(self.typingTimeout);
+                    self.typingTimeout = setTimeout(function() {
+                        $('#typing-indicator').addClass('hidden-el');
+                        $('#typing-status').addClass('hidden-el');
+                        $('#online-status').removeClass('hidden-el');
+                    }, 3000);
+                });
+        },
+
+        listenForNotifications: function() {
+            var self = this;
+            Echo.private('user.{{ auth()->id() }}')
+                .listen('NotificationSent', function(e) {
+                    self.unreadTotal++;
+                    self.updateUnreadBadge();
+                });
+        },
+
+        sendMessage: function() {
+            var self = this;
+            var body = $('#message-input').val().trim();
+            if (!body) return;
+
+            $('#message-input').val('').css('height', 'auto');
+            $('#btn-send').prop('disabled', true);
+
+            $.ajax({
+                url: '{{ route("blade.messages.store") }}',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                data: JSON.stringify({
+                    conversation_id: self.activeConversation,
+                    body: body
+                }),
+                success: function(data) {
+                    if (data.message) {
+                        self.messages.push(data.message);
+                        $('#messages-list').append(self.createMessageBubble(data.message));
+                        self.scrollToBottom();
+                    }
+                },
+                error: function() {
+                    // Kembalikan pesan jika gagal
+                    $('#message-input').val(body);
+                    $('#btn-send').prop('disabled', false);
+                }
+            });
+        },
+
+        emitTyping: function() {
+            if (!this.activeConversation) return;
+            $.ajax({
+                url: '{{ route("blade.typing") }}',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: { 'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content') },
+                data: JSON.stringify({ conversation_id: this.activeConversation })
+            });
+        },
+
+        searchUsers: function() {
+            var query = $('#search-input').val().trim();
+            if (query.length < 2) {
+                $('#search-results').addClass('hidden-el').empty();
+                return;
+            }
+
+            $.ajax({
+                url: '{{ route("blade.users.search") }}',
+                method: 'GET',
+                data: { q: query },
+                headers: { 'Accept': 'application/json' },
+                success: function(data) {
+                    var users = data.users || [];
+                    if (users.length === 0) {
+                        $('#search-results').addClass('hidden-el').empty();
+                        return;
+                    }
+                    var html = '';
+                    $.each(users, function(i, user) {
+                        html += '<button data-user-id="' + user.id + '" class="search-user-item btn-press w-full flex items-center px-4 py-3 hover:bg-gray-50 transition-colors">' +
+                            '<div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">' +
+                                user.name.charAt(0).toUpperCase() +
+                            '</div>' +
+                            '<div class="ml-3 text-left">' +
+                                '<p class="text-sm font-medium text-gray-900">' + ChatApp.escapeHtml(user.name) + '</p>' +
+                                '<p class="text-xs text-gray-500">' + ChatApp.escapeHtml(user.email) + '</p>' +
+                            '</div>' +
+                        '</button>';
+                    });
+                    $('#search-results').html(html).removeClass('hidden-el');
+                }
+            });
+        },
+
+        startChat: function(userId) {
+            $.ajax({
+                url: '{{ route("blade.conversations.start") }}',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                data: JSON.stringify({ user_id: userId }),
+                success: function(data) {
+                    if (data.conversation) {
+                        window.location.href = '/blade/conversations/' + data.conversation.id;
+                    }
+                }
+            });
+        }
     };
-}
+
+    // Click handler for search results (event delegation)
+    $(document).on('click', '.search-user-item', function() {
+        var userId = $(this).data('user-id');
+        ChatApp.startChat(userId);
+    });
+
+    // Initialize on document ready
+    $(document).ready(function() {
+        ChatApp.init();
+    });
+
+})(jQuery);
 </script>
 @endpush
 @endsection

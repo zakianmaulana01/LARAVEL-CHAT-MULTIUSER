@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -44,5 +45,10 @@ class User extends Authenticatable
     public function isOnline(): bool
     {
         return $this->last_seen && $this->last_seen->diffInMinutes(now()) < 5;
+    }
+
+    public function aiChatHistories(): HasMany
+    {
+        return $this->hasMany(AiChatHistory::class);
     }
 }

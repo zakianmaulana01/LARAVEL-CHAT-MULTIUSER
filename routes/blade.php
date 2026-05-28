@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\BladeAuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AiChatController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('blade')->name('blade.')->group(function () {
@@ -27,6 +28,11 @@ Route::prefix('blade')->name('blade.')->group(function () {
         Route::post('conversations/start', [ChatController::class, 'startConversation'])->name('conversations.start');
         Route::post('typing', [ChatController::class, 'typing'])->name('typing');
         Route::get('users/search', [ChatController::class, 'searchUsers'])->name('users.search');
+
+        // AI Chat
+        Route::get('ai-chat', [AiChatController::class, 'index'])->name('ai.chat');
+        Route::post('ai-chat', [AiChatController::class, 'send'])->name('ai.send');
+        Route::delete('ai-chat', [AiChatController::class, 'clear'])->name('ai.clear');
 
         // Superadmin
         Route::middleware('superadmin')->prefix('admin')->name('admin.')->group(function () {

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'Chat') }} - @yield('title', 'Chat')</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {
@@ -14,7 +15,6 @@
             --duration-standard: 250ms;
             --duration-slow: 400ms;
         }
-        [x-cloak] { display: none !important; }
 
         .btn-press { transition: transform var(--duration-quick) var(--ease-out); }
         .btn-press:active { transform: scale(0.97); }
@@ -22,10 +22,6 @@
         .animate-fade-in {
             animation: fadeSlideIn var(--duration-standard) var(--ease-out) both;
         }
-        .animate-fade-in-delay-1 { animation-delay: 50ms; }
-        .animate-fade-in-delay-2 { animation-delay: 100ms; }
-        .animate-fade-in-delay-3 { animation-delay: 150ms; }
-        .animate-fade-in-delay-4 { animation-delay: 200ms; }
 
         @keyframes fadeSlideIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -60,6 +56,8 @@
         .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
         .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
         .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
+        .hidden-el { display: none !important; }
     </style>
 </head>
 <body class="h-full bg-gray-100 antialiased font-sans">
