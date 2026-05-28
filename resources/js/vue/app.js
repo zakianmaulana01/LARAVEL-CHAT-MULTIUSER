@@ -13,14 +13,24 @@ if (token) {
     axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
 }
 
-// Setup Echo
-window.Pusher = Pusher;
-window.Echo = new Echo({
-    broadcaster: 'pusher',
-    key: import.meta.env.VITE_PUSHER_APP_KEY,
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
-    forceTLS: true,
-});
+// Setup Echo (conditional — only if Pusher key is configured)
+const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+if (pusherKey && pusherKey !== 'undefined') {
+    try {
+        window.Pusher = Pusher;
+        window.Echo = new Echo({
+            broadcaster: 'pusher',
+            key: pusherKey,
+            cluster: pusherCluster || 'ap1',
+            forceTLS: true,
+        });
+    } catch (e) {
+        console.warn('[Echo] Gagal inisialisasi Pusher:', e.message);
+    }
+} else {
+    console.warn('[Echo] VITE_PUSHER_APP_KEY tidak dikonfigurasi. Realtime dinonaktifkan.');
+}
 
 // Router
 const routes = [
@@ -39,11 +49,14 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach(async (to, from, next) => {
-    const app = router.app;
     if (to.meta.auth && !window.__user) {
         try {
             const res = await axios.get('/vue/user');
-            window.__user = res.data.user;
+            if (res.data && res.data.user) {
+                window.__user = res.data.user;
+            } else {
+                return next({ name: 'login' });
+            }
         } catch {
             return next({ name: 'login' });
         }

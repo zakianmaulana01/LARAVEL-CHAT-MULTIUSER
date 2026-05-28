@@ -180,9 +180,26 @@
             </div>
         </div>
 
+        {{-- File Preview Area --}}
+        <div id="file-preview-area" class="px-4 pt-2 bg-white border-t border-gray-100 hidden-el">
+            <div class="flex items-center space-x-3 pb-2">
+                <div id="file-preview-content" class="flex items-center space-x-2 bg-gray-50 rounded-xl px-3 py-2 flex-1 min-w-0"></div>
+                <button id="btn-remove-file" type="button" class="flex-shrink-0 w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-600 text-xs transition-colors">&times;</button>
+            </div>
+        </div>
+
         {{-- Input Area --}}
         <div id="input-area" class="px-4 py-3 bg-white border-t border-gray-100 hidden-el">
-            <form id="message-form" class="flex items-end space-x-3">
+            <form id="message-form" class="flex items-end space-x-2">
+                {{-- Paperclip Button --}}
+                <button type="button" id="btn-attach" class="btn-press flex-shrink-0 w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors" title="Lampirkan file">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                    </svg>
+                </button>
+                {{-- Hidden file input --}}
+                <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx,.zip,.txt" class="hidden">
+
                 <div class="flex-1 relative">
                     <textarea id="message-input" rows="1" placeholder="Ketik pesan..."
                         class="w-full resize-none border-0 bg-gray-50 rounded-2xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200 max-h-32 overflow-y-auto"></textarea>
@@ -197,6 +214,43 @@
         </div>
     </div>
 </div>
+
+<style>
+.msg-actions {
+    display: none;
+    position: absolute;
+    top: -32px;
+    right: 0;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 2px 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 10;
+    white-space: nowrap;
+}
+.msg-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px 5px;
+    font-size: 13px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+.msg-actions button:hover {
+    background: #f3f4f6;
+}
+.msg-bubble-wrapper {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+}
+.msg-bubble-wrapper:hover .msg-actions {
+    display: flex;
+    align-items: center;
+}
+</style>
 
 @push('scripts')
 <script>
@@ -213,6 +267,7 @@
         echoChannel: null,
         searchDebounce: null,
         currentUserId: {{ auth()->id() }},
+        selectedFile: null,
 
         init: function() {
             this.bindEvents();
@@ -263,8 +318,8 @@
             $('#message-input').on('input', function() {
                 this.style.height = 'auto';
                 this.style.height = this.scrollHeight + 'px';
-                // Enable/disable send button
-                $('#btn-send').prop('disabled', !$(this).val().trim());
+                // Enable/disable send button based on text or file
+                $('#btn-send').prop('disabled', !$(this).val().trim() && !self.selectedFile);
                 // Emit typing
                 self.emitTyping();
             });
@@ -273,6 +328,77 @@
             $('#btn-back').on('click', function() {
                 window.location.href = '/blade/conversations';
             });
+
+            // Attach file button
+            $('#btn-attach').on('click', function() {
+                $('#file-input').click();
+            });
+
+            // File selected
+            $('#file-input').on('change', function() {
+                var file = this.files[0];
+                if (!file) return;
+                self.selectedFile = file;
+                self.showFilePreview(file);
+                $('#btn-send').prop('disabled', false);
+            });
+
+            // Remove file
+            $('#btn-remove-file').on('click', function() {
+                self.clearSelectedFile();
+            });
+
+            // Edit message (save)
+            $(document).on('click', '.btn-edit-save', function() {
+                var $bubble = $(this).closest('[data-msg-id]');
+                var msgId = $bubble.data('msg-id');
+                var newBody = $bubble.find('.edit-textarea').val().trim();
+                if (!newBody) return;
+                self.saveEdit(msgId, newBody, $bubble);
+            });
+
+            // Edit message (cancel)
+            $(document).on('click', '.btn-edit-cancel', function() {
+                var $bubble = $(this).closest('[data-msg-id]');
+                var originalBody = $bubble.data('original-body');
+                self.cancelEdit($bubble, originalBody);
+            });
+
+            // Long-press for mobile action menu
+            var longPressTimer = null;
+            $(document).on('touchstart', '[data-msg-id]', function() {
+                var $el = $(this);
+                longPressTimer = setTimeout(function() {
+                    $el.find('.msg-actions').css('display', 'flex');
+                }, 500);
+            });
+            $(document).on('touchend touchcancel', '[data-msg-id]', function() {
+                clearTimeout(longPressTimer);
+            });
+        },
+
+        showFilePreview: function(file) {
+            var isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+            var html = '';
+            if (isImage) {
+                var url = URL.createObjectURL(file);
+                html = '<img src="' + url + '" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">' +
+                       '<span class="text-xs text-gray-600 truncate">' + this.escapeHtml(file.name) + '</span>';
+            } else {
+                html = '<span class="text-lg">📄</span>' +
+                       '<span class="text-xs text-gray-600 truncate">' + this.escapeHtml(file.name) + '</span>';
+            }
+            $('#file-preview-content').html(html);
+            $('#file-preview-area').removeClass('hidden-el');
+        },
+
+        clearSelectedFile: function() {
+            this.selectedFile = null;
+            $('#file-input').val('');
+            $('#file-preview-area').addClass('hidden-el');
+            $('#file-preview-content').empty();
+            // Update send button
+            $('#btn-send').prop('disabled', !$('#message-input').val().trim());
         },
 
         calculateUnread: function() {
@@ -321,6 +447,7 @@
         },
 
         createMessageBubble: function(msg) {
+            var self = this;
             var isMine = msg.sender.id == this.currentUserId;
             var alignClass = isMine ? 'flex justify-end' : 'flex justify-start';
             var bubbleClass = isMine
@@ -328,20 +455,162 @@
                 : 'bg-white text-gray-800 rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm border border-gray-100';
 
             var time = this.formatTime(msg.created_at);
+
+            // Read receipt
             var readCheck = '';
-            if (isMine && msg.is_read) {
-                readCheck = '<svg class="w-3.5 h-3.5 opacity-70" fill="currentColor" viewBox="0 0 24 24"><path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/></svg>';
+            if (isMine) {
+                if (msg.is_read) {
+                    // Double check — emerald tinted
+                    readCheck = '<svg class="w-3.5 h-3.5 text-emerald-200" fill="currentColor" viewBox="0 0 24 24"><path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/></svg>';
+                } else {
+                    // Single check — gray, sent
+                    readCheck = '<svg class="w-3 h-3 opacity-50" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+                }
             }
 
-            return '<div class="message-enter ' + alignClass + '">' +
-                '<div class="max-w-[75%] lg:max-w-[60%] ' + bubbleClass + '">' +
-                    '<p class="text-sm leading-relaxed whitespace-pre-wrap">' + this.escapeHtml(msg.body) + '</p>' +
-                    '<div class="flex items-center justify-end mt-1 space-x-1">' +
-                        '<span class="text-[10px] opacity-70">' + time + '</span>' +
-                        readCheck +
+            // Message body content
+            var bodyHtml = '';
+            if (msg.deleted_by_sender) {
+                bodyHtml = '<em class="text-xs opacity-60">Pesan ini telah dihapus</em>';
+            } else {
+                // File attachment
+                if (msg.file_path) {
+                    var ext = msg.file_path.split('.').pop().toLowerCase();
+                    var imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    if (imageExts.indexOf(ext) !== -1) {
+                        bodyHtml += '<a href="/storage/' + msg.file_path + '" target="_blank">' +
+                            '<img src="/storage/' + msg.file_path + '" class="max-w-[200px] rounded-xl mb-1 cursor-pointer" loading="lazy" style="display:block;">' +
+                        '</a>';
+                    } else {
+                        var fileName = msg.file_path.split('/').pop();
+                        bodyHtml += '<a href="/storage/' + msg.file_path + '" download class="flex items-center space-x-2 mb-1 opacity-90 hover:opacity-100">' +
+                            '<span class="text-lg">📄</span>' +
+                            '<span class="text-xs underline">' + self.escapeHtml(fileName) + '</span>' +
+                        '</a>';
+                    }
+                }
+                // Text body
+                if (msg.body) {
+                    bodyHtml += '<p class="msg-body-text text-sm leading-relaxed whitespace-pre-wrap">' + this.escapeHtml(msg.body) + '</p>';
+                }
+                // Edited label
+                if (msg.edited_at) {
+                    bodyHtml += '<span class="text-[10px] opacity-50 italic"> (diedit)</span>';
+                }
+            }
+
+            // Action buttons (only for own messages, not deleted)
+            var actionsHtml = '';
+            if (isMine && !msg.deleted_by_sender) {
+                var now = new Date();
+                var sentAt = new Date(msg.created_at);
+                var canEdit = (now - sentAt) < 5 * 60 * 1000;
+                if (canEdit) {
+                    actionsHtml = '<div class="msg-actions">' +
+                        '<button class="btn-msg-edit" title="Edit">✏️</button>' +
+                        '<button class="btn-msg-delete" title="Hapus">🗑️</button>' +
+                    '</div>';
+                }
+            }
+
+            return $('<div class="message-enter ' + alignClass + '">' +
+                '<div class="msg-bubble-wrapper" data-msg-id="' + msg.id + '" data-original-body="' + this.escapeHtml(msg.body || '') + '">' +
+                    actionsHtml +
+                    '<div class="max-w-[75%] lg:max-w-[60%] ' + bubbleClass + '">' +
+                        '<div class="msg-content">' + bodyHtml + '</div>' +
+                        '<div class="flex items-center justify-end mt-1 space-x-1">' +
+                            '<span class="text-[10px] opacity-70">' + time + '</span>' +
+                            readCheck +
+                        '</div>' +
                     '</div>' +
                 '</div>' +
-            '</div>';
+            '</div>');
+        },
+
+        updateMessageBubble: function(msg) {
+            var $wrapper = $('[data-msg-id="' + msg.id + '"]');
+            if (!$wrapper.length) return;
+
+            var $content = $wrapper.find('.msg-content');
+            var bodyHtml = '';
+
+            if (msg.deleted_by_sender) {
+                bodyHtml = '<em class="text-xs opacity-60">Pesan ini telah dihapus</em>';
+                $wrapper.find('.msg-actions').remove();
+            } else {
+                if (msg.file_path) {
+                    var ext = msg.file_path.split('.').pop().toLowerCase();
+                    var imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    if (imageExts.indexOf(ext) !== -1) {
+                        bodyHtml += '<a href="/storage/' + msg.file_path + '" target="_blank">' +
+                            '<img src="/storage/' + msg.file_path + '" class="max-w-[200px] rounded-xl mb-1 cursor-pointer" loading="lazy" style="display:block;">' +
+                        '</a>';
+                    } else {
+                        var fileName = msg.file_path.split('/').pop();
+                        bodyHtml += '<a href="/storage/' + msg.file_path + '" download class="flex items-center space-x-2 mb-1 opacity-90 hover:opacity-100">' +
+                            '<span class="text-lg">📄</span>' +
+                            '<span class="text-xs underline">' + this.escapeHtml(fileName) + '</span>' +
+                        '</a>';
+                    }
+                }
+                if (msg.body) {
+                    bodyHtml += '<p class="msg-body-text text-sm leading-relaxed whitespace-pre-wrap">' + this.escapeHtml(msg.body) + '</p>';
+                }
+                if (msg.edited_at) {
+                    bodyHtml += '<span class="text-[10px] opacity-50 italic"> (diedit)</span>';
+                }
+            }
+
+            $content.html(bodyHtml);
+            $wrapper.data('original-body', msg.body || '');
+        },
+
+        saveEdit: function(msgId, newBody, $wrapper) {
+            var self = this;
+            $.ajax({
+                url: '/blade/messages/' + msgId,
+                method: 'PATCH',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                data: JSON.stringify({ body: newBody }),
+                success: function(data) {
+                    var msg = data.message || data;
+                    var bodyHtml = '<p class="msg-body-text text-sm leading-relaxed whitespace-pre-wrap">' + self.escapeHtml(msg.body || newBody) + '</p>';
+                    if (msg.edited_at || data.edited_at) {
+                        bodyHtml += '<span class="text-[10px] opacity-50 italic"> (diedit)</span>';
+                    }
+                    $wrapper.find('.msg-content').html(bodyHtml);
+                    $wrapper.data('original-body', newBody);
+                },
+                error: function() {
+                    self.cancelEdit($wrapper, $wrapper.data('original-body'));
+                }
+            });
+        },
+
+        cancelEdit: function($wrapper, originalBody) {
+            var bodyHtml = '<p class="msg-body-text text-sm leading-relaxed whitespace-pre-wrap">' + this.escapeHtml(originalBody || '') + '</p>';
+            $wrapper.find('.msg-content').html(bodyHtml);
+        },
+
+        deleteMessage: function(msgId, $wrapper) {
+            var self = this;
+            if (!confirm('Hapus pesan ini?')) return;
+            $.ajax({
+                url: '/blade/messages/' + msgId,
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                success: function() {
+                    $wrapper.find('.msg-content').html('<em class="text-xs opacity-60">Pesan ini telah dihapus</em>');
+                    $wrapper.find('.msg-actions').remove();
+                }
+            });
         },
 
         escapeHtml: function(text) {
@@ -382,6 +651,9 @@
                         headers: { 'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content') }
                     });
                 })
+                .listen('MessageUpdated', function(e) {
+                    self.updateMessageBubble(e.message);
+                })
                 .listen('TypingStarted', function(e) {
                     $('#typing-indicator').removeClass('hidden-el');
                     $('#typing-status').text(e.user_name + ' sedang mengetik...').removeClass('hidden-el');
@@ -407,36 +679,71 @@
         sendMessage: function() {
             var self = this;
             var body = $('#message-input').val().trim();
-            if (!body) return;
+
+            // Require either body or file
+            if (!body && !this.selectedFile) return;
 
             $('#message-input').val('').css('height', 'auto');
             $('#btn-send').prop('disabled', true);
 
-            $.ajax({
-                url: '{{ route("blade.messages.store") }}',
-                method: 'POST',
-                contentType: 'application/json',
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
-                    'Accept': 'application/json'
-                },
-                data: JSON.stringify({
-                    conversation_id: self.activeConversation,
-                    body: body
-                }),
-                success: function(data) {
-                    if (data.message) {
-                        self.messages.push(data.message);
-                        $('#messages-list').append(self.createMessageBubble(data.message));
-                        self.scrollToBottom();
+            var file = this.selectedFile;
+            this.clearSelectedFile();
+
+            if (file) {
+                // Use FormData for file upload
+                var formData = new FormData();
+                formData.append('conversation_id', self.activeConversation);
+                if (body) formData.append('body', body);
+                formData.append('file', file);
+
+                $.ajax({
+                    url: '{{ route("blade.messages.store") }}',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                        'Accept': 'application/json'
+                    },
+                    success: function(data) {
+                        if (data.message) {
+                            self.messages.push(data.message);
+                            $('#messages-list').append(self.createMessageBubble(data.message));
+                            self.scrollToBottom();
+                        }
+                    },
+                    error: function() {
+                        $('#message-input').val(body);
+                        $('#btn-send').prop('disabled', false);
                     }
-                },
-                error: function() {
-                    // Kembalikan pesan jika gagal
-                    $('#message-input').val(body);
-                    $('#btn-send').prop('disabled', false);
-                }
-            });
+                });
+            } else {
+                $.ajax({
+                    url: '{{ route("blade.messages.store") }}',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name=csrf-token]').attr('content'),
+                        'Accept': 'application/json'
+                    },
+                    data: JSON.stringify({
+                        conversation_id: self.activeConversation,
+                        body: body
+                    }),
+                    success: function(data) {
+                        if (data.message) {
+                            self.messages.push(data.message);
+                            $('#messages-list').append(self.createMessageBubble(data.message));
+                            self.scrollToBottom();
+                        }
+                    },
+                    error: function() {
+                        $('#message-input').val(body);
+                        $('#btn-send').prop('disabled', false);
+                    }
+                });
+            }
         },
 
         emitTyping: function() {
@@ -508,6 +815,34 @@
     $(document).on('click', '.search-user-item', function() {
         var userId = $(this).data('user-id');
         ChatApp.startChat(userId);
+    });
+
+    // Edit button click
+    $(document).on('click', '.btn-msg-edit', function(e) {
+        e.stopPropagation();
+        var $wrapper = $(this).closest('[data-msg-id]');
+        var originalBody = $wrapper.data('original-body');
+        var $content = $wrapper.find('.msg-content');
+
+        // Replace content with textarea
+        $content.html(
+            '<textarea class="edit-textarea w-full text-sm bg-white bg-opacity-20 rounded-lg p-2 resize-none focus:outline-none" rows="2">' +
+            $('<div>').text(originalBody).html() +
+            '</textarea>' +
+            '<div class="flex space-x-2 mt-1">' +
+                '<button class="btn-edit-save text-xs bg-emerald-600 text-white px-3 py-1 rounded-lg hover:bg-emerald-700 transition-colors">Simpan</button>' +
+                '<button class="btn-edit-cancel text-xs bg-gray-400 text-white px-3 py-1 rounded-lg hover:bg-gray-500 transition-colors">Batal</button>' +
+            '</div>'
+        );
+        $content.find('.edit-textarea').focus();
+    });
+
+    // Delete button click
+    $(document).on('click', '.btn-msg-delete', function(e) {
+        e.stopPropagation();
+        var $wrapper = $(this).closest('[data-msg-id]');
+        var msgId = $wrapper.data('msg-id');
+        ChatApp.deleteMessage(msgId, $wrapper);
     });
 
     // Initialize on document ready
