@@ -27,6 +27,10 @@ class BladeAuthController extends Controller
             $request->session()->regenerate();
             $request->user()->update(['last_seen' => now()]);
 
+            if (auth()->user()->isSuperadmin()) {
+                return redirect()->route('blade.admin.dashboard');
+            }
+
             return redirect()->intended(route('blade.home'));
         }
 

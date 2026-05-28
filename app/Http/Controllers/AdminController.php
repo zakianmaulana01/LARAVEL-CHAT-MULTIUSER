@@ -102,4 +102,33 @@ class AdminController extends Controller
 
         return view('blade.admin.messages', compact('messages'));
     }
+
+    public function monitor(Request $request)
+    {
+        $search = $request->input('search');
+
+        $conversations = Conversation::with(['participants', 'latestMessage.sender'])
+            ->withCount('messages')
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('participants', function ($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('updated_at')
+            ->paginate(20);
+
+        return view('blade.admin.monitor', compact('conversations', 'search'));
+    }
+
+    public function monitorShow(Request $request, Conversation $conversation)
+    {
+        $messages = $conversation->messages()
+            ->with('sender')
+            ->orderBy('created_at', 'asc')
+            ->paginate(100);
+
+        $conversation->load('participants');
+
+        return view('blade.admin.monitor-show', compact('conversation', 'messages'));
+    }
 }
