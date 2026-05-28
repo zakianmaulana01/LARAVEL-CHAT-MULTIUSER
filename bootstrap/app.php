@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->redirectGuestsTo(fn () => route('blade.login'));
         $middleware->alias([
             'not.banned' => \App\Http\Middleware\EnsureNotBanned::class,
             'superadmin' => \App\Http\Middleware\SuperadminMiddleware::class,

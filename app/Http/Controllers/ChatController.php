@@ -104,6 +104,11 @@ class ChatController extends Controller
         ]);
 
         $otherUser = User::findOrFail($validated['user_id']);
+
+        if ($otherUser->is_banned) {
+            return response()->json(['message' => 'User telah dibanned.'], 422);
+        }
+
         $conversation = $this->chatService->getOrCreateDirectConversation($request->user(), $otherUser);
 
         if ($request->expectsJson()) {
