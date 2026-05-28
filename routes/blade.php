@@ -24,6 +24,8 @@ Route::prefix('blade')->name('blade.')->group(function () {
         Route::get('conversations', [ChatController::class, 'index'])->name('conversations');
         Route::get('conversations/{conversation}', [ChatController::class, 'show'])->name('conversations.show');
         Route::post('messages', [ChatController::class, 'store'])->name('messages.store');
+        Route::patch('messages/{message}', [ChatController::class, 'update'])->name('messages.update');
+        Route::delete('messages/{message}', [ChatController::class, 'destroy'])->name('messages.destroy');
         Route::post('conversations/{conversation}/read', [ChatController::class, 'markRead'])->name('messages.read');
         Route::post('conversations/start', [ChatController::class, 'startConversation'])->name('conversations.start');
         Route::post('typing', [ChatController::class, 'typing'])->name('typing');
@@ -42,6 +44,8 @@ Route::prefix('blade')->name('blade.')->group(function () {
             Route::post('users/{user}/ban', [AdminController::class, 'banUser'])->name('users.ban');
             Route::get('messages', [AdminController::class, 'messages'])->name('messages');
             Route::delete('messages/{message}', [AdminController::class, 'destroyMessage'])->name('messages.destroy');
+            Route::get('monitor', [AdminController::class, 'monitor'])->name('monitor');
+            Route::get('monitor/{conversation}', [AdminController::class, 'monitorShow'])->name('monitor.show');
         });
     });
 });

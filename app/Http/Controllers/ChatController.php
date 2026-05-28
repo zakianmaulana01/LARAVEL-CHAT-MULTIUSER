@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageUpdated;
 use App\Events\TypingStarted;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\ChatService;
 use Illuminate\Http\Request;
@@ -80,6 +82,39 @@ class ChatController extends Controller
         }
 
         return back();
+    }
+
+    public function update(Request $request, Message $message)
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        if (!$message->canBeEditedBy($request->user())) {
+            abort(403);
+        }
+
+        $message->update([
+            'body' => $validated['body'],
+            'edited_at' => now(),
+        ]);
+
+        broadcast(new MessageUpdated($message->fresh()->load('sender')));
+
+        return response()->json(['message' => $message->fresh()->load('sender')], 200);
+    }
+
+    public function destroy(Request $request, Message $message)
+    {
+        if (!$message->canBeDeletedBy($request->user())) {
+            abort(403);
+        }
+
+        $message->update(['deleted_by_sender' => true]);
+
+        broadcast(new MessageUpdated($message->fresh()->load('sender')));
+
+        return response()->json(['status' => 'ok'], 200);
     }
 
     public function markRead(Request $request, Conversation $conversation)

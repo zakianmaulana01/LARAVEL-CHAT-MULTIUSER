@@ -21,6 +21,8 @@ Route::prefix('vue')->name('vue.')->group(function () {
         Route::get('conversations', [ChatController::class, 'index'])->name('conversations');
         Route::get('conversations/{conversation}', [ChatController::class, 'show'])->name('conversations.show');
         Route::post('messages', [ChatController::class, 'store'])->name('messages.store');
+        Route::patch('messages/{message}', [ChatController::class, 'update'])->name('messages.update');
+        Route::delete('messages/{message}', [ChatController::class, 'destroy'])->name('messages.destroy');
         Route::post('conversations/{conversation}/read', [ChatController::class, 'markRead'])->name('messages.read');
         Route::post('conversations/start', [ChatController::class, 'startConversation'])->name('conversations.start');
         Route::post('typing', [ChatController::class, 'typing'])->name('typing');
